@@ -1,0 +1,124 @@
+
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Document - TrustVault</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f1f5f9;
+            margin: 0;
+            color: #1e293b;
+        }
+
+        header {
+            background: #142b4a;
+            color: white;
+            padding: 20px 35px;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 30px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+        }
+
+        label {
+            display: block;
+            margin-top: 18px;
+            font-weight: bold;
+        }
+
+        input, select {
+            box-sizing: border-box;
+            width: 100%;
+            padding: 12px;
+            margin-top: 8px;
+        }
+
+        button {
+            margin-top: 25px;
+            padding: 12px 20px;
+            background: #1d4ed8;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .message {
+            margin-top: 15px;
+            padding: 10px;
+            background: #eff6ff;
+            border-radius: 6px;
+        }
+    </style>
+</head>
+
+<body>
+
+<header>
+    <h1>🔐 TrustVault</h1>
+    <p>Your documents. Your control.</p>
+</header>
+
+<div class="container">
+
+    <h2>Upload a Document</h2>
+    <p>Select a document and provide its details.</p>
+
+    <p class="message"
+       th:if="${message}"
+       th:text="${message}">
+    </p>
+
+    <form action="/documents/upload"
+          method="post"
+          enctype="multipart/form-data">
+
+        <!-- CSRF security token -->
+        <input type="hidden"
+               th:name="${_csrf.parameterName}"
+               th:value="${_csrf.token}">
+
+        <label for="documentName">Document Name</label>
+        <input type="text"
+               id="documentName"
+               name="name"
+               maxlength="100"
+               required>
+
+        <label for="category">Category</label>
+        <select id="category" name="category" required>
+            <option value="">Select category</option>
+            <option value="Personal">Personal</option>
+            <option value="Work">Work</option>
+            <option value="Education">Education</option>
+            <option value="Other">Other</option>
+        </select>
+
+        <label for="file">Choose File</label>
+        <input type="file"
+               id="file"
+               name="file"
+               accept=".pdf,.txt,.png,.jpg,.jpeg"
+               required>
+
+        <button type="submit">Upload Document</button>
+
+    </form>
+
+    <p>
+        <a href="/documents">Back to My Documents</a>
+    </p>
+
+</div>
+
+</body>
+</html>

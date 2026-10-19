@@ -1,0 +1,58 @@
+
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>My Documents - TrustVault</title>
+</head>
+<body>
+
+<h1>🔐 TrustVault — My Documents</h1>
+
+<!-- Logout button -->
+<form th:action="@{/logout}" method="post">
+    <input type="hidden"
+           th:name="${_csrf.parameterName}"
+           th:value="${_csrf.token}">
+    <button type="submit">Logout</button>
+</form>
+
+<p>
+    <a href="/documents/upload">Upload New Document</a>
+</p>
+
+<p th:if="${#lists.isEmpty(documents)}">
+    No documents uploaded yet.
+</p>
+
+<table border="1" cellpadding="10">
+    <thead>
+    <tr>
+        <th>Name</th>
+        <th>Category</th>
+        <th>Download</th>
+        <th>Original Filename</th>
+        <th>Upload Date</th>
+    </tr>
+    </thead>
+    <tbody>
+
+    <tbody>
+    <tr th:each="doc : ${documents}">
+        <td th:text="${doc.name}"></td>
+        <td th:text="${doc.category}"></td>
+        <td>
+            <a th:href="@{/documents/download/{id}(id=${doc.id})}">
+                Download
+            </a>
+        </td>
+        <td th:text="${doc.originalFilename}"></td>
+        <td th:text="${doc.uploadedAt}"></td>
+    </tr>
+    </tbody>
+
+    </tbody>
+</table>
+
+</body>
+</html>
