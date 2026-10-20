@@ -18,7 +18,7 @@
 </form>
 
 <p>
-    <a href="/documents/upload">Upload New Document</a>
+    <a th:href="@{/documents/upload}">Upload New Document</a>
 </p>
 
 <p th:if="${#lists.isEmpty(documents)}">
@@ -30,27 +30,34 @@
     <tr>
         <th>Name</th>
         <th>Category</th>
+        <th>View</th>
         <th>Download</th>
         <th>Original Filename</th>
         <th>Upload Date</th>
     </tr>
     </thead>
-    <tbody>
 
     <tbody>
     <tr th:each="doc : ${documents}">
         <td th:text="${doc.name}"></td>
         <td th:text="${doc.category}"></td>
+
+        <!-- View document in a new tab -->
+        <td>
+            <a th:href="@{/documents/view/{id}(id=${doc.id})}"
+               target="_blank">View</a>
+        </td>
+
+        <!-- Download document -->
         <td>
             <a th:href="@{/documents/download/{id}(id=${doc.id})}">
                 Download
             </a>
         </td>
+
         <td th:text="${doc.originalFilename}"></td>
         <td th:text="${doc.uploadedAt}"></td>
     </tr>
-    </tbody>
-
     </tbody>
 </table>
 

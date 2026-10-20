@@ -1,31 +1,27 @@
 
 package com.trustvault.trustvault;
 
-import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.multipart.MultipartFile;
-import org.springframework.security.core.Authentication;
-import org.springframework.ui.Model;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.server.ResponseStatusException;
-import org.springframework.http.HttpStatus;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
-import java.util.Set;
 import java.util.UUID;
-import java.util.Map;
-import java.util.LinkedHashMap;
-import java.util.ArrayList;
+
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 
 @Controller
 public class DocumentController {
@@ -40,114 +36,6 @@ public class DocumentController {
         this.shareRepository = shareRepository;
     }
 
-    // 1. Open upload page
-    @GetMapping("/documents/upload")
-    public String showUploadPage() {
-        return "upload";
-    }
-
-    // 2. Upload a document
-    @PostMapping("/documents/upload")
-    public String uploadDocument(
-            @RequestParam("name") String name,
-            @RequestParam("category") String category,
-            @RequestParam("file") MultipartFile file,
-            Authentication authentication,
-            Model model) {
-
-        if (name == null || name.isBlank()
-                || category == null || category.isBlank()
-                || file == null || file.isEmpty()) {
-            model.addAttribute("message",
-                    "Please enter all details and select a file.");
-            return "upload";
-        }
-
-        if (file.getSize() > 10 * 1024 * 1024) {
-            model.addAttribute("message",
-                    "File must be 10 MB or less.");
-            return "upload";
-        }
-
-        String originalFilename = file.getOriginalFilename();
-
-        if (originalFilename == null || originalFilename.isBlank()) {
-            model.addAttribute("message", "Invalid filename.");
-            return "upload";
-        }
-
-        String safeFilename =
-                Paths.get(originalFilename).getFileName().toString();
-
-        int dotIndex = safeFilename.lastIndexOf('.');
-
-        if (dotIndex <= 0 || dotIndex == safeFilename.length() - 1) {
-            model.addAttribute("message",
-                    "File must have a valid extension.");
-            return "upload";
-        }
-
-        String extension =
-                safeFilename.substring(dotIndex + 1).toLowerCase();
-
-        if (!Set.of("pdf", "txt", "png", "jpg", "jpeg")
-                .contains(extension)) {
-            model.addAttribute("message",
-                    "Only PDF, TXT, PNG, JPG and JPEG files are allowed.");
-            return "upload";
-        }
-
-        Path destination = null;
-
-        try {
-            Path uploadDir = Paths.get("trustvault-uploads")
-                    .toAbsolutePath().normalize();
-
-            Files.createDirectories(uploadDir);
-
-            String storedFilename = UUID.randomUUID() + "." + extension;
-            destination = uploadDir.resolve(storedFilename).normalize();
-
-            if (!destination.startsWith(uploadDir)) {
-                model.addAttribute("message", "Invalid file path.");
-                return "upload";
-            }
-
-            Files.copy(file.getInputStream(), destination,
-                    StandardCopyOption.REPLACE_EXISTING);
-
-            Document document = new Document();
-            document.setName(name.trim());
-            document.setCategory(category);
-            document.setOriginalFilename(safeFilename);
-            document.setStoredFilename(storedFilename);
-            document.setContentType(file.getContentType());
-            document.setFileSize(file.getSize());
-            document.setOwnerUsername(authentication.getName());
-            document.setUploadedAt(LocalDateTime.now());
-
-            documentRepository.save(document);
-
-            model.addAttribute("message",
-                    "Document uploaded successfully!");
-
-        } catch (IOException | RuntimeException e) {
-            if (destination != null) {
-                try {
-                    Files.deleteIfExists(destination);
-                } catch (IOException ignored) {
-                    // Cleanup failure should be checked separately.
-                }
-            }
-
-            model.addAttribute("message",
-                    "Upload failed. Check the server console.");
-        }
-
-        return "upload";
-    }
-
-    // 3. Show documents owned by the user and shared with the user
     @GetMapping("/documents")
     public String listDocuments(
             Authentication authentication,
@@ -155,35 +43,91 @@ public class DocumentController {
 
         String username = authentication.getName();
 
-        Map<Long, Document> documents = new LinkedHashMap<>();
+        boolean isAdmin = authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
 
-        // Documents owned by the logged-in user
-        for (Document doc :
-                documentRepository.findByOwnerUsername(username)) {
-            documents.put(doc.getId(), doc);
+        if (isAdmin) {
+            model.addAttribute("documents", documentRepository.findAll());
+        } else {
+            model.addAttribute(
+                    "documents",
+                    documentRepository.findAll().stream()
+                            .filter(doc ->
+                                    username.equals(doc.getOwnerUsername())
+                                            || shareRepository
+                                            .findByDocumentIdAndSharedWithUsername(
+                                                    doc.getId(), username)
+                                            .isPresent())
+                            .toList());
         }
-
-        // Documents shared with the logged-in user
-        for (DocumentShare share :
-                shareRepository.findBySharedWithUsername(username)) {
-
-            documentRepository.findById(share.getDocumentId())
-                    .ifPresent(doc ->
-                            documents.put(doc.getId(), doc));
-        }
-
-        model.addAttribute(
-                "documents",
-                new ArrayList<>(documents.values()));
 
         return "documents";
     }
 
-    // 4. Download a document only if authorized
-    @GetMapping("/documents/download/{id}")
-    public ResponseEntity<byte[]> downloadDocument(
-            @PathVariable Long id,
-            Authentication authentication) throws IOException {
+    @GetMapping("/documents/upload")
+    public String uploadPage() {
+        return "upload";
+    }
+
+    @PostMapping("/documents/upload")
+    public String uploadDocument(
+            @RequestParam("name") String name,
+            @RequestParam("category") String category,
+            @RequestParam("file") MultipartFile file,
+            Authentication authentication,
+            Model model) throws IOException {
+
+        if (name == null || name.isBlank()
+                || category == null || category.isBlank()
+                || file.isEmpty()) {
+            model.addAttribute("error", "Please fill all fields and select a file.");
+            return "upload";
+        }
+
+        if (file.getSize() > 10 * 1024 * 1024) {
+            model.addAttribute("error", "File size must not exceed 10 MB.");
+            return "upload";
+        }
+
+        Path uploadDir = Paths.get("trustvault-uploads")
+                .toAbsolutePath().normalize();
+        Files.createDirectories(uploadDir);
+
+        String originalFilename = Path.of(file.getOriginalFilename())
+                .getFileName().toString();
+        String storedFilename = UUID.randomUUID()
+                + getExtension(originalFilename);
+
+        Path destination = uploadDir.resolve(storedFilename).normalize();
+
+        if (!destination.startsWith(uploadDir)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST);
+        }
+
+        Files.copy(file.getInputStream(), destination,
+                StandardCopyOption.REPLACE_EXISTING);
+
+        Document document = new Document();
+        document.setName(name);
+        document.setCategory(category);
+        document.setOriginalFilename(originalFilename);
+        document.setStoredFilename(storedFilename);
+        document.setContentType(file.getContentType());
+        document.setOwnerUsername(authentication.getName());
+        document.setUploadedAt(LocalDateTime.now());
+
+        documentRepository.save(document);
+
+        return "redirect:/documents";
+    }
+
+    private String getExtension(String filename) {
+        int dot = filename.lastIndexOf('.');
+        return dot >= 0 ? filename.substring(dot) : "";
+    }
+
+    private Document getAuthorizedDocument(
+            Long id, Authentication authentication) {
 
         Document document = documentRepository.findById(id)
                 .orElseThrow(() ->
@@ -191,21 +135,23 @@ public class DocumentController {
 
         String username = authentication.getName();
 
-        boolean isOwner =
-                document.getOwnerUsername().equals(username);
+        boolean isOwner = username.equals(document.getOwnerUsername());
 
         boolean isAdmin = authentication.getAuthorities().stream()
-                .anyMatch(a ->
-                        a.getAuthority().equals("ROLE_ADMIN"));
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
 
-        boolean isSharedWithUser = shareRepository
+        boolean isShared = shareRepository
                 .findByDocumentIdAndSharedWithUsername(id, username)
                 .isPresent();
 
-        if (!isOwner && !isAdmin && !isSharedWithUser) {
+        if (!isOwner && !isAdmin && !isShared) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }
 
+        return document;
+    }
+
+    private Path getFilePath(Document document) {
         Path uploadDir = Paths.get("trustvault-uploads")
                 .toAbsolutePath().normalize();
 
@@ -216,21 +162,45 @@ public class DocumentController {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
 
-        byte[] fileBytes = Files.readAllBytes(filePath);
+        return filePath;
+    }
+
+    @GetMapping("/documents/view/{id}")
+    public ResponseEntity<byte[]> viewDocument(
+            @PathVariable Long id,
+            Authentication authentication) throws IOException {
+
+        Document document = getAuthorizedDocument(id, authentication);
+        Path filePath = getFilePath(document);
 
         String contentType = document.getContentType();
-
         if (contentType == null || contentType.isBlank()) {
             contentType = MediaType.APPLICATION_OCTET_STREAM_VALUE;
         }
 
-        String downloadFilename =
-                document.getOriginalFilename().replace("\"", "");
+        String filename = document.getOriginalFilename().replace("\"", "");
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION,
-                        "attachment; filename=\"" + downloadFilename + "\"")
+                        "inline; filename=\"" + filename + "\"")
+                .contentType(MediaType.parseMediaType(contentType))
+                .body(Files.readAllBytes(filePath));
+    }
+
+    @GetMapping("/documents/download/{id}")
+    public ResponseEntity<byte[]> downloadDocument(
+            @PathVariable Long id,
+            Authentication authentication) throws IOException {
+
+        Document document = getAuthorizedDocument(id, authentication);
+        Path filePath = getFilePath(document);
+
+        String filename = document.getOriginalFilename().replace("\"", "");
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + filename + "\"")
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                .body(fileBytes);
+                .body(Files.readAllBytes(filePath));
     }
 }
