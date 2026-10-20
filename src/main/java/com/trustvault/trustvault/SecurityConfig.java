@@ -1,6 +1,7 @@
 
 package com.trustvault.trustvault;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -14,6 +15,15 @@ import org.springframework.security.web.SecurityFilterChain;
 @Configuration
 public class SecurityConfig {
 
+    @Value("${ADMIN_PASSWORD}")
+    private String adminPassword;
+
+    @Value("${OWNER_PASSWORD}")
+    private String ownerPassword;
+
+    @Value("${VIEWER_PASSWORD}")
+    private String viewerPassword;
+
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
@@ -24,17 +34,17 @@ public class SecurityConfig {
             PasswordEncoder passwordEncoder) {
 
         UserDetails admin = User.withUsername("admin")
-                .password(passwordEncoder.encode("Admin@123"))
+                .password(passwordEncoder.encode(adminPassword))
                 .roles("ADMIN")
                 .build();
 
         UserDetails owner = User.withUsername("owner")
-                .password(passwordEncoder.encode("TvOwner#84Kp!29"))
+                .password(passwordEncoder.encode(ownerPassword))
                 .roles("OWNER")
                 .build();
 
         UserDetails viewer = User.withUsername("viewer")
-                .password(passwordEncoder.encode("Viewer@123"))
+                .password(passwordEncoder.encode(viewerPassword))
                 .roles("VIEWER")
                 .build();
 
@@ -49,7 +59,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/").permitAll()
                         .requestMatchers("/admin/**").hasRole("ADMIN")
-                        .requestMatchers("/owner/**").hasAnyRole("ADMIN", "OWNER")
+                        .requestMatchers("/owner/**")
+                        .hasAnyRole("ADMIN", "OWNER")
                         .requestMatchers("/viewer/**")
                         .hasAnyRole("ADMIN", "OWNER", "VIEWER")
                         .anyRequest().authenticated()
