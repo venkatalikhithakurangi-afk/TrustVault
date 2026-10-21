@@ -1,0 +1,95 @@
+
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TrustVault - Audit Trail</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f6f9;
+            margin: 0;
+            padding: 30px;
+        }
+
+        h1 {
+            color: #243447;
+        }
+
+        p {
+            color: #555;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            margin-top: 20px;
+        }
+
+        th, td {
+            padding: 12px;
+            border: 1px solid #ddd;
+            text-align: left;
+        }
+
+        th {
+            background: #243447;
+            color: white;
+        }
+
+        tr:nth-child(even) {
+            background: #f2f5f8;
+        }
+
+        .empty {
+            padding: 20px;
+            background: white;
+            border-radius: 6px;
+        }
+
+        a {
+            color: #1769aa;
+        }
+    </style>
+</head>
+
+<body>
+
+<h1>TrustVault - Audit Trail</h1>
+<p>Review document activities and see who performed each action.</p>
+
+<p>
+    <a href="/documents">Back to Documents</a>
+</p>
+
+<table>
+    <thead>
+    <tr>
+        <th>ID</th>
+        <th>Username</th>
+        <th>Action</th>
+        <th>Document Name</th>
+        <th>Date &amp; Time</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    <tr th:each="log : ${auditLogs}">
+        <td th:text="${log.id}"></td>
+        <td th:text="${log.username}"></td>
+        <td th:text="${log.action}"></td>
+        <td th:text="${log.documentName}"></td>
+        <td th:text="${log.timestamp}"></td>
+    </tr>
+    </tbody>
+</table>
+
+<p class="empty" th:if="${#lists.isEmpty(auditLogs)}">
+    No audit records found yet.
+</p>
+
+</body>
+</html>

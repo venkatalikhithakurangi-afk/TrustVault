@@ -28,12 +28,16 @@ public class DocumentController {
 
     private final DocumentRepository documentRepository;
     private final DocumentShareRepository shareRepository;
+    private final AuditService auditService;
 
     public DocumentController(
             DocumentRepository documentRepository,
-            DocumentShareRepository shareRepository) {
+            DocumentShareRepository shareRepository,
+            AuditService auditService) {
+
         this.documentRepository = documentRepository;
         this.shareRepository = shareRepository;
+        this.auditService = auditService;
     }
 
     @GetMapping("/documents")
@@ -80,21 +84,28 @@ public class DocumentController {
         if (name == null || name.isBlank()
                 || category == null || category.isBlank()
                 || file.isEmpty()) {
-            model.addAttribute("error", "Please fill all fields and select a file.");
+
+            model.addAttribute(
+                    "error",
+                    "Please fill all fields and select a file.");
             return "upload";
         }
 
         if (file.getSize() > 10 * 1024 * 1024) {
-            model.addAttribute("error", "File size must not exceed 10 MB.");
+            model.addAttribute(
+                    "error",
+                    "File size must not exceed 10 MB.");
             return "upload";
         }
 
         Path uploadDir = Paths.get("trustvault-uploads")
                 .toAbsolutePath().normalize();
+
         Files.createDirectories(uploadDir);
 
         String originalFilename = Path.of(file.getOriginalFilename())
                 .getFileName().toString();
+
         String storedFilename = UUID.randomUUID()
                 + getExtension(originalFilename);
 
@@ -104,7 +115,9 @@ public class DocumentController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST);
         }
 
-        Files.copy(file.getInputStream(), destination,
+        Files.copy(
+                file.getInputStream(),
+                destination,
                 StandardCopyOption.REPLACE_EXISTING);
 
         Document document = new Document();
@@ -118,6 +131,12 @@ public class DocumentController {
 
         documentRepository.save(document);
 
+        // Audit Trail: successful document upload
+        auditService.logAction(
+                authentication.getName(),
+                "DOCUMENT_UPLOAD",
+                document.getName());
+
         return "redirect:/documents";
     }
 
@@ -127,7 +146,8 @@ public class DocumentController {
     }
 
     private Document getAuthorizedDocument(
-            Long id, Authentication authentication) {
+            Long id,
+            Authentication authentication) {
 
         Document document = documentRepository.findById(id)
                 .orElseThrow(() ->
@@ -174,14 +194,22 @@ public class DocumentController {
         Path filePath = getFilePath(document);
 
         String contentType = document.getContentType();
+
         if (contentType == null || contentType.isBlank()) {
             contentType = MediaType.APPLICATION_OCTET_STREAM_VALUE;
         }
 
         String filename = document.getOriginalFilename().replace("\"", "");
 
+        // Audit Trail: authorized document view
+        auditService.logAction(
+                authentication.getName(),
+                "DOCUMENT_VIEW",
+                document.getName());
+
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION,
+                .header(
+                        HttpHeaders.CONTENT_DISPOSITION,
                         "inline; filename=\"" + filename + "\"")
                 .contentType(MediaType.parseMediaType(contentType))
                 .body(Files.readAllBytes(filePath));
@@ -197,8 +225,15 @@ public class DocumentController {
 
         String filename = document.getOriginalFilename().replace("\"", "");
 
+        // Audit Trail: authorized document download
+        auditService.logAction(
+                authentication.getName(),
+                "DOCUMENT_DOWNLOAD",
+                document.getName());
+
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION,
+                .header(
+                        HttpHeaders.CONTENT_DISPOSITION,
                         "attachment; filename=\"" + filename + "\"")
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .body(Files.readAllBytes(filePath));
